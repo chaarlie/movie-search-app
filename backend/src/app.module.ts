@@ -6,6 +6,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { BullModule } from '@nestjs/bullmq';
+import { StreamModule } from './stream/stream.module';
 
 @Module({
   imports: [
@@ -21,11 +22,12 @@ import { BullModule } from '@nestjs/bullmq';
     }),
     MoviesModule,
     FavoritesModule,
+    StreamModule,
     ThrottlerModule.forRoot({
       throttlers: [
         {
           ttl: 60000,
-          limit: 10,
+          limit: 100,
         },
       ],
     }),

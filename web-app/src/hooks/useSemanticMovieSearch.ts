@@ -1,52 +1,48 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import axios from "axios";
-import { useSSE } from "./useSSE";
+import { useUnifiedSSE, EventTypes } from "./useUnifiedSSE";
 import { Movie } from "../types";
 
 export function useSemanticMovieSearch() {
   const [queryId, setQueryId] = useState<string | null>(null);
-  const [isSearching, setIsSearching] = useState(false);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
+  const eventTypes = useMemo(
+    () => [
+      EventTypes.SEMANTIC_SEARCH_SUCCESS,
+      EventTypes.SEMANTIC_SEARCH_FAILURE,
+    ],
+    []
+  );
+
+  const { data, error, isLoading, setIsLoading } = useUnifiedSSE<Movie[]>(
+    eventTypes,
+    queryId
+  );
 
   const search = useCallback(
     async (query: string) => {
       const newQueryId = `semantic-search-${Date.now()}`;
+      setQueryId(newQueryId);
+      setIsLoading(true);
 
       try {
-        setIsSearching(true);
-
         await axios.get(`${apiUrl}/movie/semantic-search`, {
           params: { query, queryId: newQueryId },
         });
-
-        setQueryId(newQueryId);
       } catch (error) {
         console.error("Failed to start semantic search:", error);
-        setIsSearching(false);
+        setIsLoading(false);
         throw error;
       }
     },
-    [apiUrl]
-  );
-
-  const { data, error, isLoading } = useSSE<Movie[]>(
-    `${apiUrl}/movie/stream/semantic-search`,
-    queryId,
-    {
-      onSuccess: (data) => {
-        setIsSearching(false);
-      },
-      onError: (error) => {
-        console.error("Semantic search failed:", error);
-        setIsSearching(false);
-      },
-    }
+    [apiUrl, setIsLoading]
   );
 
   return {
     search,
     data: data || [],
     error,
-    isLoading: isSearching || isLoading,
+    isLoading,
   };
 }

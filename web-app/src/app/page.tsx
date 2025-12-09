@@ -51,7 +51,7 @@ function SearchResults({
         regularSearch(searchQuery, 1);
       }
     }
-  }, [searchQuery, useSemanticSearch, regularSearch, semanticSearch]);
+  }, [searchQuery, useSemanticSearch]);
 
   useEffect(() => {
     const activeData = useSemanticSearch ? semanticData : regularData;

@@ -1,44 +1,48 @@
-import { Movie } from "@/types";
+import { useState, useCallback, useMemo } from "react";
 import axios from "axios";
-import { useState, useCallback } from "react";
-import { useSSE } from "./useSSE";
+import { useUnifiedSSE, EventTypes } from "./useUnifiedSSE";
+import { Movie } from "../types";
 
 export function useRemoveFavorite() {
-  const [isRemoving, setIsRemoving] = useState(false);
+  const [queryId, setQueryId] = useState<string | null>(null);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
+  const eventTypes = useMemo(
+    () => [
+      EventTypes.REMOVE_FAVORITE_SUCCESS,
+      EventTypes.REMOVE_FAVORITE_FAILURE,
+    ],
+    []
+  );
+
+  const { data, error, isLoading, setIsLoading } = useUnifiedSSE<Movie[]>(
+    eventTypes,
+    queryId
+  );
 
   const removeFavorite = useCallback(
     async (imdbID: string) => {
+      const newQueryId = `remove-fav-${Date.now()}`;
+      setQueryId(newQueryId);
+      setIsLoading(true);
+
       try {
-        setIsRemoving(true);
-        await axios.delete(`${apiUrl}/favorite-movie/${imdbID}`);
+        await axios.delete(`${apiUrl}/favorite-movie/${imdbID}`, {
+          params: { queryId: newQueryId },
+        });
       } catch (error) {
         console.error("Failed to remove favorite:", error);
-        setIsRemoving(false);
+        setIsLoading(false);
         throw error;
       }
     },
-    [apiUrl]
-  );
-
-  const { data, error, isLoading } = useSSE<Movie[]>(
-    `${apiUrl}/favorite-movie/stream/remove`,
-    null,
-    {
-      onSuccess: (data) => {
-        setIsRemoving(false);
-      },
-      onError: (error) => {
-        console.error("Remove favorite failed:", error);
-        setIsRemoving(false);
-      },
-    }
+    [apiUrl, setIsLoading]
   );
 
   return {
     removeFavorite,
     updatedFavorites: data || [],
     error,
-    isLoading: isRemoving || isLoading,
+    isLoading,
   };
 }

@@ -1,20 +1,36 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import axios from "axios";
-import { useSSE } from "./useSSE";
+import { useUnifiedSSE, EventTypes } from "./useUnifiedSSE";
 import { Movie } from "../types";
 
 export function useFavorites() {
+  const [queryId, setQueryId] = useState<string | null>(null);
   const [isFetching, setIsFetching] = useState(false);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 
-  const fetchFavorites = useCallback(async () => {
-    try {
-      setIsFetching(true);
-      await axios.get(`${apiUrl}/favorite-movie`);
+  const eventTypes = useMemo(
+    () => [EventTypes.GET_FAVORITES_SUCCESS, EventTypes.GET_FAVORITES_FAILURE],
+    []
+  );
 
-      setTimeout(() => {
-        setIsFetching(false);
-      }, 1000);
+  const { data, error, isLoading } = useUnifiedSSE<Movie[]>(
+    eventTypes,
+    queryId,
+    {
+      onSuccess: () => setIsFetching(false),
+      onError: () => setIsFetching(false),
+    }
+  );
+
+  const refetch = useCallback(async () => {
+    const newQueryId = `get-favs-${Date.now()}`;
+    setQueryId(newQueryId);
+    setIsFetching(true);
+
+    try {
+      await axios.get(`${apiUrl}/favorite-movie`, {
+        params: { queryId: newQueryId },
+      });
     } catch (error) {
       console.error("Failed to fetch favorites:", error);
       setIsFetching(false);
@@ -22,24 +38,10 @@ export function useFavorites() {
     }
   }, [apiUrl]);
 
-  const { data, error, isLoading } = useSSE<Movie[]>(
-    `${apiUrl}/favorite-movie/stream/get-all`,
-    "",
-    {
-      onSuccess: (data) => {
-        setIsFetching(false);
-      },
-      onError: (error) => {
-        console.error("Fetch favorites failed:", error);
-        setIsFetching(false);
-      },
-    }
-  );
-
   return {
     favorites: data || [],
     error,
-    isLoading: isFetching,
-    refetch: fetchFavorites,
+    isLoading: isFetching || isLoading,
+    refetch,
   };
 }

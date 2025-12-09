@@ -1,47 +1,49 @@
-import { Movie } from "@/types";
+import { useState, useCallback, useMemo } from "react";
 import axios from "axios";
-import { useState, useCallback } from "react";
-import { useSSE } from "./useSSE";
+import { useUnifiedSSE, EventTypes } from "./useUnifiedSSE";
+import { Movie } from "../types";
 
 export function useAddFavorite() {
-  const [isAdding, setIsAdding] = useState(false);
+  const [queryId, setQueryId] = useState<string | null>(null);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
+  const eventTypes = useMemo(
+    () => [EventTypes.ADD_FAVORITE_SUCCESS, EventTypes.ADD_FAVORITE_FAILURE],
+    []
+  );
+
+  const { data, error, isLoading, setIsLoading } = useUnifiedSSE<Movie[]>(
+    eventTypes,
+    queryId
+  );
 
   const addFavorite = useCallback(
     async (movie: Movie) => {
-      try {
-        setIsAdding(true);
+      const newQueryId = `add-fav-${Date.now()}`;
+      setQueryId(newQueryId);
+      setIsLoading(true);
 
-        const response = await axios.post(`${apiUrl}/favorite-movie`, {
-          movie,
-        });
+      try {
+        await axios.post(
+          `${apiUrl}/favorite-movie`,
+          { movie },
+          {
+            params: { queryId: newQueryId },
+          }
+        );
       } catch (error) {
         console.error("Failed to add favorite:", error);
-        setIsAdding(false);
+        setIsLoading(false);
         throw error;
       }
     },
-    [apiUrl]
-  );
-
-  const { data, error, isLoading } = useSSE<Movie[]>(
-    `${apiUrl}/favorite-movie/stream/add`,
-    "",
-    {
-      onSuccess: (data) => {
-        setIsAdding(false);
-      },
-      onError: (error) => {
-        console.error("Add favorite failed:", error);
-        setIsAdding(false);
-      },
-    }
+    [apiUrl, setIsLoading]
   );
 
   return {
     addFavorite,
     updatedFavorites: data || [],
     error,
-    isLoading: isAdding || isLoading,
+    isLoading,
   };
 }
